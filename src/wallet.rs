@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, hash::Hash, str::FromStr};
 
 use crypto::{digest::Digest, ripemd160};
 use log::{error, info};
@@ -24,6 +24,10 @@ impl Wallet {
         }
     }
 
+    pub fn get_pub_key(&self) -> Vec<u8> {
+        self.public_key.clone()
+    }
+
     fn generate_keypair() -> (Vec<u8>, Vec<u8>) {
         let secp = secp256k1::Secp256k1::new();
         let random_bytes = rand::random::<[u8; 32]>();
@@ -42,12 +46,13 @@ impl Wallet {
         signature.serialize().to_vec()
     }
 
-    fn verify(public_key: &[u8], message: &[u8], signature: &Signature) -> bool {
+    fn verify(public_key: &[u8], message: &[u8], signature: &str) -> bool {
         let secp = secp256k1::Secp256k1::new();
         let message = secp256k1::Message::from_digest_slice(message).unwrap();
+        let signature = secp256k1::schnorr::Signature::from_str(signature).unwrap();
         let xonly_pubkey = secp256k1::XOnlyPublicKey::from_slice(&public_key).unwrap();
 
-        secp.verify_schnorr(signature, &message, &xonly_pubkey).is_ok()
+        secp.verify_schnorr(&signature, &message, &xonly_pubkey).is_ok()
     }
 
     fn get_address_helper(public_key: &[u8]) -> String {
@@ -208,7 +213,7 @@ impl Wallets {
         drop(db);
         addresses
     }
-    }
+}
 
 pub fn new_wallets() -> Wallets {
     Wallets::new()

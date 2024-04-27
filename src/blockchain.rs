@@ -3,10 +3,11 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use bincode::{self, deserialize};
+use failure::format_err;
 use crate::block::Block;
 use crate::errors::Result;
 use crate::transaction::Transaction;
-use crate::tx::{TXOutput};
+use crate::tx::{TXInput, TXOutput};
 use log::info;
 
 const TARGET_HEXT: usize = 4;
@@ -106,7 +107,7 @@ impl Blockchain {
 
                 if !tx.is_coinbase() {
                     for input in tx.get_ins() {
-                        if input.can_unlock_output_with(address.to_owned()) {
+                        if input.can_be_unlocked_with(address.to_owned()) {
                             let in_txid = input.get_txid();
                             let in_out = input.get_vout();
 
@@ -121,7 +122,7 @@ impl Blockchain {
     }
 
     // Finds and returns all unspent transaction outputs
-    pub fn find_UTX0(&self, address: &str) -> HashMap<String, TXOutput> {
+    pub fn find_utxo(&self, address: &str) -> HashMap<String, TXOutput> {
         let mut utxos: HashMap<String, TXOutput> = HashMap::new();
         let mut spent_utxos = HashMap::<String, Vec<f32>>::new();
 
@@ -143,7 +144,7 @@ impl Blockchain {
                                 tx.get_id().clone(),
                                 TXOutput {
                                     value: tx.get_outs()[index].get_value(),
-                                    script_pub_key: tx.get_outs()[index].get_script_pub_key().clone(),
+                                    pub_key_hash: tx.get_outs()[index].get_script_pub_key().clone().into(),
                                 }
                             );
                         }
@@ -180,6 +181,38 @@ impl Blockchain {
         }
 
         (accumulated, unspent_outputs)
+    }
+
+    pub fn verify_transaction(&self, tx: &mut Transaction) -> Result<bool> {
+        let prev_txs = self.get_prev_txs(tx)?;
+        tx.verify(prev_txs)
+    }
+
+    pub fn sign_transaction(&self, tx: &mut Transaction, private_key: &[u8]) -> Result<()> {
+        let prev_txs = self.get_prev_txs(tx)?;
+        tx.sign(private_key, prev_txs)?;
+        Ok(())
+    }
+
+    fn get_prev_txs(&self, tx: &Transaction) -> Result<HashMap<String, Transaction>> {
+        let mut prev_txs = HashMap::new();
+        for vin in &tx.get_ins() {
+            let prev_tx = self.find_transaction(&vin.get_txid())?;
+            prev_txs.insert(prev_tx.get_id(), prev_tx);
+        }
+
+        Ok(prev_txs)
+    }
+
+    fn find_transaction(&self, id: &str) -> Result<Transaction> {
+        for block in self.iter() {
+            for tx in block.get_transactions() {
+                if tx.get_id() == id {
+                    return Ok(tx.clone());
+                }
+            }
+        }
+        Err(format_err!("Transaction not found"))
     }
 
     

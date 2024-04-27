@@ -30,7 +30,7 @@ impl Cli {
             .subcommand(Command::new("listaddresses").about("List all addresses"))
             .subcommand(Command::new("getwallet").about("Get a wallet")
                 .arg(arg!(<ADDRESS>).required(true).index(1)))
-            .subcommand(Command::new("getwallets").about("Get all wallets"))
+            .subcommand(Command::new("listwallets").about("List all wallets"))
 
             .get_matches();
 
@@ -86,7 +86,7 @@ impl Cli {
             }
         }
 
-        if matches.subcommand_matches("getwallets").is_some() {
+        if matches.subcommand_matches("listwallets").is_some() {
             let wallets = Wallets::new();
             for wallet in wallets.get_wallets().values() {
                 println!("{:#?}", wallet);
@@ -112,7 +112,7 @@ impl Cli {
 
     fn cmd_get_balance(address: &str) -> Result<()> {
         let bc = Blockchain::new()?;
-        let utxos = bc.find_UTX0(address);
+        let utxos = bc.find_utxo(address);
         let mut balance = 0.0;
         for out in utxos {
             balance += out.1.get_value();
@@ -129,7 +129,7 @@ impl Cli {
 
     fn cmd_send(from: &str, to: &str, amount: f32) -> Result<()> {
         let bc = Blockchain::new()?;
-        let tx = Transaction::new_UTX0(from, to, amount, &bc)?;
+        let tx = Transaction::new_utxo(from, to, amount, &bc)?;
         let mut cli = Cli {};
         cli.cmd_add_block(vec![tx])?;
         println!("Transaction sent");
